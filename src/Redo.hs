@@ -11,10 +11,11 @@ main = do
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
 execute "list" _       = list
+execute command _      = putStrLn $ "Unknown Command: " ++ command
 
 list :: IO ()
 list = do
-  result <- withRedis $ lrange (pack "redo") 0 (-1)
+  result <- withRedis $ lrange namespace 0 (-1)
 
   listFeedback result
 
@@ -24,7 +25,7 @@ listFeedback (Right tasks) = mapM_ (putStrLn . unpack) tasks
 
 add :: String -> IO ()
 add task = do
-    result <- withRedis $ rpush (pack "redo") [(pack task)]
+    result <- withRedis $ rpush namespace [(pack task)]
 
     putStrLn $ addFeedback task result
 
@@ -36,3 +37,6 @@ withRedis :: Redis a -> IO a
 withRedis f = do
     conn <- connect defaultConnectInfo
     runRedis conn f
+
+namespace :: Data.ByteString.Internal.ByteString
+namespace = pack "Redo:tasks"
