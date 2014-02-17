@@ -1,6 +1,7 @@
 import Database.Redis
 import System.Environment
-import Data.ByteString.Char8 ( pack )
+import Data.ByteString.Char8 ( pack, unpack )
+import Data.ByteString.Internal
 
 main = do
     (command:arguments) <- getArgs
@@ -9,6 +10,17 @@ main = do
 
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
+execute "view" _       = view
+
+view :: IO ()
+view = do
+  result <- withRedis $ lrange (pack "redo") 0 (-1)
+
+  viewFeedback result
+
+viewFeedback :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
+viewFeedback (Left reply)  = putStrLn $ "Error: " ++ show reply
+viewFeedback (Right tasks) = mapM_ (putStrLn . unpack) tasks
 
 add :: String -> IO ()
 add task = do
