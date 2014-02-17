@@ -10,17 +10,17 @@ main = do
 
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
-execute "view" _       = view
+execute "list" _       = list
 
-view :: IO ()
-view = do
+list :: IO ()
+list = do
   result <- withRedis $ lrange (pack "redo") 0 (-1)
 
-  viewFeedback result
+  listFeedback result
 
-viewFeedback :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
-viewFeedback (Left reply)  = putStrLn $ "Error: " ++ show reply
-viewFeedback (Right tasks) = mapM_ (putStrLn . unpack) tasks
+listFeedback :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
+listFeedback (Left reply)  = putStrLn $ "Error: " ++ show reply
+listFeedback (Right tasks) = mapM_ (putStrLn . unpack) tasks
 
 add :: String -> IO ()
 add task = do
