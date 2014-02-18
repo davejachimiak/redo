@@ -4,9 +4,14 @@ import Data.ByteString.Char8 ( pack, unpack )
 import Data.ByteString.Internal
 
 main = do
-    (command:arguments) <- getArgs
+    arguments <- getArgs
 
-    execute command arguments
+    if length arguments > 0
+        then execute (head arguments) (tail arguments)
+        else do
+            putStrLn "Commands: redo list"
+            putStrLn "          redo add \"task name\""
+            putStrLn "          redo remove task_number"
 
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
