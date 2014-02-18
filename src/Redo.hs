@@ -40,16 +40,14 @@ listFeedback (Right tasks) = do
 
 remove :: Integer -> IO ()
 remove n = do
-    let handleRemove _ (Left reply) = putStrLn $ "Error: " ++ show reply
-        handleRemove task (Right _) = putStrLn $ "Task removed: " ++ unpack task
-        handleTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
-        handleTaskResult (Right (Just task)) = do
+    let handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
+        handleFetchTaskResult (Right (Just task)) = do
             result <- withRedis $ lrem namespace 1 task
             removeFeedback task result
-        handleTaskResult (Right Nothing) = putStrLn "Task not found."
+        handleFetchTaskResult (Right Nothing) = putStrLn "Task not found."
 
     taskResult <- withRedis $ fetchTask n
-    handleTaskResult taskResult
+    handleFetchTaskResult taskResult
 
 removeFeedback :: ByteString -> Either Reply Integer -> IO ()
 removeFeedback _ (Left reply) = putStrLn $ "Error: " ++ show reply
