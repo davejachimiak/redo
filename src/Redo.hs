@@ -64,9 +64,9 @@ removeOutput _ (Left reply) = putStrLn $ "Error: " ++ show reply
 removeOutput task (Right _) = putStrLn $ "Task removed: " ++ unpack task
 
 withRedis :: Redis a -> IO a
-withRedis f = do
+withRedis action = do
     conn <- connect defaultConnectInfo
-    runRedis conn f
+    runRedis conn action
 
 namespace :: Data.ByteString.Internal.ByteString
 namespace = pack "Redo:tasks"
