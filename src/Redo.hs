@@ -10,8 +10,9 @@ main = do
 
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
-execute "list" _       = list
-execute command _      = putStrLn $ "Unknown Command: " ++ command
+execute "list" _ = list
+execute "remove" (nString:_) = remove $ 1 - (read nString :: Integer)
+execute command _ = putStrLn $ "Unknown Command: " ++ command
 
 add :: String -> IO ()
 add task = do
@@ -25,16 +26,29 @@ addFeedback task (Right _) = "Task added: " ++ task
 
 list :: IO ()
 list = do
-  result <- withRedis $ lrange namespace 0 (-1)
+    result <- withRedis $ lrange namespace 0 (-1)
 
-  listFeedback result
+    listFeedback result
 
 listFeedback :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
 listFeedback (Left reply)  = putStrLn $ "Error: " ++ show reply
 listFeedback (Right tasks) = do
-    let numberedTasks = zipWith (\n task -> show n ++ " -- " ++ unpack task) [1..] tasks
+    let numericizeTask = (\n task -> show n ++ " -- " ++ unpack task)
+        numberedTasks  = zipWith numericizeTask [1..] tasks
 
     mapM_ putStrLn numberedTasks
+
+remove :: Integer -> IO ()
+remove n = do
+    (Right result) <- withRedis $ do
+        (Right (Just cool)) <- fetchTask n
+
+        lrem namespace 1 cool
+
+    putStrLn $ show result
+
+fetchTask :: RedisCtx m f => Integer -> m (f (Maybe ByteString))
+fetchTask n = lindex namespace n
 
 withRedis :: Redis a -> IO a
 withRedis f = do
