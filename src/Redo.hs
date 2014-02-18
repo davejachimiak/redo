@@ -11,7 +11,7 @@ main = do
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
 execute "list" _ = list
-execute "remove" (nString:_) = remove $ 1 - (read nString :: Integer)
+execute "remove" (nString:_) = remove $ (read nString :: Integer) - 1
 execute command _ = putStrLn $ "Unknown Command: " ++ command
 
 add :: String -> IO ()
