@@ -18,21 +18,21 @@ add :: String -> IO ()
 add task = do
     result <- withRedis $ rpush namespace [(pack task)]
 
-    putStrLn $ addFeedback task result
+    putStrLn $ addOutput task result
 
-addFeedback :: String -> Either Reply Integer -> String
-addFeedback _ (Left reply) = "Error: " ++ show reply
-addFeedback task (Right _) = "Task added: " ++ task
+addOutput :: String -> Either Reply Integer -> String
+addOutput _ (Left reply) = "Error: " ++ show reply
+addOutput task (Right _) = "Task added: " ++ task
 
 list :: IO ()
 list = do
     result <- withRedis $ lrange namespace 0 (-1)
 
-    listFeedback result
+    listOutput result
 
-listFeedback :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
-listFeedback (Left reply)  = putStrLn $ "Error: " ++ show reply
-listFeedback (Right tasks) = do
+listOutput :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
+listOutput (Left reply)  = putStrLn $ "Error: " ++ show reply
+listOutput (Right tasks) = do
     let numericizeTask = (\n task -> show n ++ " -- " ++ unpack task)
         numberedTasks  = zipWith numericizeTask [1..] tasks
 
@@ -43,19 +43,19 @@ remove n = do
     let handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
         handleFetchTaskResult (Right (Just task)) = do
             result <- withRedis $ lrem namespace 1 task
-            removeFeedback task result
+            removeOutput task result
         handleFetchTaskResult (Right Nothing) = taskNotFound
         taskNotFound = putStrLn "Task not found."
 
-    if n > 0
+    if n >= 0
         then do
             taskResult <- withRedis $ fetchTask n
             handleFetchTaskResult taskResult
         else taskNotFound
 
-removeFeedback :: ByteString -> Either Reply Integer -> IO ()
-removeFeedback _ (Left reply) = putStrLn $ "Error: " ++ show reply
-removeFeedback task (Right _) = putStrLn $ "Task removed: " ++ unpack task
+removeOutput :: ByteString -> Either Reply Integer -> IO ()
+removeOutput _ (Left reply) = putStrLn $ "Error: " ++ show reply
+removeOutput task (Right _) = putStrLn $ "Task removed: " ++ unpack task
 
 fetchTask :: RedisCtx m f => Integer -> m (f (Maybe ByteString))
 fetchTask n = lindex namespace n
