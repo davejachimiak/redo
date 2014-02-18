@@ -44,10 +44,14 @@ remove n = do
         handleFetchTaskResult (Right (Just task)) = do
             result <- withRedis $ lrem namespace 1 task
             removeFeedback task result
-        handleFetchTaskResult (Right Nothing) = putStrLn "Task not found."
+        handleFetchTaskResult (Right Nothing) = taskNotFound
+        taskNotFound = putStrLn "Task not found."
 
-    taskResult <- withRedis $ fetchTask n
-    handleFetchTaskResult taskResult
+    if n > 0
+        then do
+            taskResult <- withRedis $ fetchTask n
+            handleFetchTaskResult taskResult
+        else taskNotFound
 
 removeFeedback :: ByteString -> Either Reply Integer -> IO ()
 removeFeedback _ (Left reply) = putStrLn $ "Error: " ++ show reply
