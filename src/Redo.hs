@@ -11,7 +11,7 @@ main = do
 execute :: String -> [String] -> IO ()
 execute "add" (task:_) = add task
 execute "list" _ = list
-execute "remove" (nString:_) = remove $ (read nString :: Integer) - 1
+execute "remove" (numberString:_) = remove $ (read numberString :: Integer) - 1
 execute command _ = putStrLn $ "Unknown Command: " ++ command
 
 add :: String -> IO ()
@@ -33,14 +33,15 @@ list = do
 listOutput :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
 listOutput (Left reply)  = putStrLn $ "Error: " ++ show reply
 listOutput (Right tasks) = do
-    let numericizeTask = (\n task -> show n ++ " -- " ++ unpack task)
-        numberedTasks  = zipWith numericizeTask [1..] tasks
+    let numericizeTask n task = show n ++ " -- " ++ unpack task
+        numberedTasks         = zipWith numericizeTask [1..] tasks
 
     mapM_ putStrLn numberedTasks
 
 remove :: Integer -> IO ()
 remove n = do
-    let handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
+    let fetchTask n = lindex namespace n
+        handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
         handleFetchTaskResult (Right (Just task)) = do
             result <- withRedis $ lrem namespace 1 task
             removeOutput task result
@@ -56,9 +57,6 @@ remove n = do
 removeOutput :: ByteString -> Either Reply Integer -> IO ()
 removeOutput _ (Left reply) = putStrLn $ "Error: " ++ show reply
 removeOutput task (Right _) = putStrLn $ "Task removed: " ++ unpack task
-
-fetchTask :: RedisCtx m f => Integer -> m (f (Maybe ByteString))
-fetchTask n = lindex namespace n
 
 withRedis :: Redis a -> IO a
 withRedis f = do
