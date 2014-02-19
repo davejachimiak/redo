@@ -7,17 +7,17 @@ main = do
     arguments <- getArgs
 
     if length arguments > 0
-        then execute (head arguments) (tail arguments)
+        then execute arguments
         else do
             putStrLn "Commands: redo list"
             putStrLn "          redo add \"task name\""
             putStrLn "          redo remove task_number"
 
-execute :: String -> [String] -> IO ()
-execute "add" (task:_) = add task
-execute "list" _ = list
-execute "remove" (numberString:_) = remove $ (read numberString :: Integer) - 1
-execute command _ = putStrLn $ "Unknown Command: " ++ command
+execute :: [String] -> IO ()
+execute ("add":task:_) = add task
+execute ("list":_) = list
+execute ("remove":numberString:_) = remove $ (read numberString :: Integer) - 1
+execute (command:_) = putStrLn $ "Unknown Command: " ++ command
 
 add :: String -> IO ()
 add task = do
