@@ -4,8 +4,6 @@ import Data.ByteString.Char8 ( pack, unpack )
 import Data.ByteString.Internal
 import Data.List
 
-data Arg = FlagArg String | NumberArg String deriving Show
-
 main = do
     arguments <- getArgs
 
@@ -14,18 +12,12 @@ main = do
 execute :: [String] -> IO ()
 execute ("add":task:_) = add task
 execute ("list":_) = list
-execute ("remove":arg:_) = handleRemoveArg $ transformRemoveArg arg
+execute ("remove":arg:_) = handleRemoveArg arg
 execute (command:_) = putStrLn $ "Unknown Command: " ++ command
 
-transformRemoveArg :: String -> Arg
-transformRemoveArg arg
-    | "-" `isPrefixOf` arg = FlagArg arg
-    | otherwise = NumberArg arg
-
-handleRemoveArg :: Arg -> IO ()
-handleRemoveArg (NumberArg numberString) = remove $ (read numberString :: Integer) - 1
-handleRemoveArg (FlagArg "-a") = removeAll
-handleRemoveArg (FlagArg _) = putStrLn "Unknown flag"
+handleRemoveArg :: String -> IO ()
+handleRemoveArg ("-a") = removeAll
+handleRemoveArg (numberString) = remove $ (read numberString :: Integer) - 1
 
 removeAll :: IO ()
 removeAll = do
