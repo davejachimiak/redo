@@ -2,6 +2,9 @@ import Database.Redis
 import System.Environment
 import Data.ByteString.Char8 ( pack, unpack )
 import Data.ByteString.Internal
+import Data.List
+
+data Arg = FlagArg String | NumberArg String deriving Show
 
 main = do
     arguments <- getArgs
@@ -11,8 +14,27 @@ main = do
 execute :: [String] -> IO ()
 execute ("add":task:_) = add task
 execute ("list":_) = list
-execute ("remove":numberString:_) = remove $ (read numberString :: Integer) - 1
+execute ("remove":arg:_) = handleRemoveArg $ transformRemoveArg arg
 execute (command:_) = putStrLn $ "Unknown Command: " ++ command
+
+transformRemoveArg :: String -> Arg
+transformRemoveArg arg
+    | "-" `isPrefixOf` arg = FlagArg arg
+    | otherwise = NumberArg arg
+
+handleRemoveArg :: Arg -> IO ()
+handleRemoveArg (NumberArg numberString) = remove $ (read numberString :: Integer) - 1
+handleRemoveArg (FlagArg "-a") = removeAll
+handleRemoveArg (FlagArg _) = putStrLn "Unknown flag"
+
+removeAll :: IO ()
+removeAll = do
+    result <- withRedis $ del [namespace]
+    putStrLn $ handleRemoveAll result
+
+handleRemoveAll :: Either Reply Integer -> String
+handleRemoveAll (Left reply) = "Error: " ++ show reply
+handleRemoveAll (Right _) = "All tasks removed"
 
 add :: String -> IO ()
 add task = do
