@@ -17,6 +17,7 @@ execute (command:_) = putStrLn $ "Unknown Command: " ++ command
 
 handleRemoveArg :: String -> IO ()
 handleRemoveArg ("-a") = removeAll
+handleRemoveArg ("--all") = removeAll
 handleRemoveArg (numberString) = remove $ (read numberString :: Integer) - 1
 
 removeAll :: IO ()
