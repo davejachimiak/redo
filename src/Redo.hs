@@ -10,7 +10,7 @@ main = do
     execute arguments
 
 execute :: [String] -> IO ()
-execute ("add":task:_) = add task
+execute ("add":tasks) = add tasks
 execute ("list":_) = list
 execute ("remove":arg:_) = handleRemoveArg arg
 execute (command:_) = putStrLn $ "Unknown Command: " ++ command
@@ -28,15 +28,15 @@ handleRemoveAll :: Either Reply Integer -> String
 handleRemoveAll (Left reply) = "Error: " ++ show reply
 handleRemoveAll (Right _) = "All tasks removed"
 
-add :: String -> IO ()
-add task = do
-    result <- withRedis $ rpush namespace [(pack task)]
+add :: [String] -> IO ()
+add tasks = do
+    result <- withRedis $ rpush namespace [pack task | task <- tasks]
 
-    putStrLn $ addOutput task result
+    putStrLn $ addOutput result
 
-addOutput :: String -> Either Reply Integer -> String
-addOutput _ (Left reply) = "Error: " ++ show reply
-addOutput task (Right _) = "Task added: " ++ task
+addOutput :: Either Reply Integer -> String
+addOutput (Left reply) = "Error: " ++ show reply
+addOutput (Right _) = "Tasks added."
 
 list :: IO ()
 list = do
