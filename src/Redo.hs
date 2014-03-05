@@ -55,7 +55,7 @@ listOutput (Right tasks) = do
 
 remove :: Integer -> IO ()
 remove n = do
-    let fetchTask n = lindex namespace n
+    let fetchTask = lindex namespace
         handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
         handleFetchTaskResult (Right (Just task)) = do
             result <- withRedis $ lrem namespace 1 task
