@@ -3,6 +3,7 @@ import System.Environment
 import qualified Data.ByteString.Char8 as B
 import Data.ByteString ( ByteString )
 import Control.Applicative
+import Data.Monoid
 
 data Command = Add Tasks deriving Show
 
@@ -23,15 +24,18 @@ add tasks = do
     result <- withRedis $ rpush namespace $ map B.pack tasks
     case result of
         Right _ -> return $ B.pack "Tasks added"
-        Left reply -> return $ B.pack $ show reply
+        Left reply -> handleError reply
 
 list :: IO ByteString
 list = do
-    let numericizeTask n t = B.pack (show n) `B.append` B.pack " -- " `B.append` t
+    let numericizeTask n t = mconcat [B.pack (show n), B.pack " -- ", t]
     result <- withRedis $ lrange namespace 0 (-1)
     case result of
         Right ts -> return $ B.unlines $ zipWith numericizeTask [1..] ts
-        Left reply -> return $ B.pack $ show reply
+        Left reply -> handleError reply
+
+handleError :: Reply -> IO ByteString
+handleError = return . B.pack . show
 
 withRedis :: Redis a -> IO a
 withRedis action = do
