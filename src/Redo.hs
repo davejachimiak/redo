@@ -8,17 +8,17 @@ import Data.Monoid
 type Tasks = [String]
 type Args = [String]
 
-data Add e r = Add (Either e Integer)
-data ListResult e r = ListResult (Either e [ByteString]) deriving Show
+data Add e r = Add (Either Reply Integer)
+data ListResult e r = ListResult (Either Reply [ByteString]) deriving Show
 
 class Result r where
     handleResult :: r -> ByteString
 
-instance (Show e) => Result (Add e r) where
+instance Result (Add e r) where
     handleResult (Add (Right _)) = B.pack "Tasks added"
     handleResult (Add (Left e)) = B.pack (show e)
 
-instance (Show e) => Result (ListResult e r) where
+instance Result (ListResult e r) where
     handleResult (ListResult (Right ts)) = B.unlines $ zipWith numericizeTask [1..] ts
     handleResult (ListResult (Left e)) = B.pack (show e)
 
@@ -38,7 +38,13 @@ list :: IO ByteString
 list = handleResult <$> ListResult <$> withRedis (lrange namespace 0 (-1))
 
 numericizeTask :: Integer -> ByteString -> ByteString
-numericizeTask n t = mconcat [B.pack (show n), B.pack " -- ", t]
+numericizeTask n t = mconcat [packShow n, separator, t]
+
+packShow :: Show a => a -> ByteString
+packShow = B.pack . show
+
+separator :: ByteString
+separator = B.pack " -- "
 
 withRedis :: Redis a -> IO a
 withRedis action = do
