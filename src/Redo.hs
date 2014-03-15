@@ -1,82 +1,81 @@
 import Database.Redis
 import System.Environment
-import Data.ByteString.Char8 ( pack, unpack )
-import Data.ByteString.Internal
-import Data.List
+import qualified Data.ByteString.Char8 as B
+import Data.ByteString ( ByteString )
+import Control.Applicative
+import Data.Monoid
+
+type Tasks = [String]
+type Args = [String]
+
+newtype AddResult = AddResult (Either Reply Integer)
+newtype ListResult = ListResult (Either Reply [ByteString])
+newtype RemoveAllResult = RemoveAllResult (Either Reply Integer)
+newtype RemoveSingleResult = RemoveSingleResult (Either Reply Integer)
+
+class Result r where
+    handleResult :: r -> ByteString
+
+instance Result AddResult where
+    handleResult (AddResult (Right _)) = B.pack "Tasks added"
+    handleResult (AddResult (Left e)) = errorResponse e
+
+instance Result ListResult where
+    handleResult (ListResult (Right ts)) =
+        B.unlines $ zipWith numericizeTask [1..] ts
+    handleResult (ListResult (Left e)) = errorResponse e
+
+instance Result RemoveAllResult where
+    handleResult (RemoveAllResult (Right _)) = B.pack "All tasks removed"
+    handleResult (RemoveAllResult (Left e)) = errorResponse e
+
+instance Result RemoveSingleResult where
+    handleResult (RemoveSingleResult (Right _)) = B.pack "Task removed"
+    handleResult (RemoveSingleResult (Left e)) = errorResponse e
 
 main = do
-    arguments <- getArgs
+    args <- getArgs
+    response <- run args
+    B.putStrLn response
 
-    execute arguments
+run :: Args -> IO ByteString
+run ("add":xs) = getResponse AddResult $ rpush namespace (map B.pack xs)
+run ("list":_) = getResponse ListResult $ lrange namespace 0 (-1)
+run ("remove":"-a":_) = removeAll
+run ("remove":"--all":_) = removeAll
+run ("remove":"-s":n:_) = removeSingle n
 
-execute :: [String] -> IO ()
-execute ("add":tasks) = add tasks
-execute ("list":_) = list
-execute ("remove":arg:_) = handleRemoveArg arg
-execute (command:_) = putStrLn $ "Unknown Command: " ++ command
+getResponse :: Result c => (a -> c) -> Redis a -> IO ByteString
+getResponse wrapper command = handleResult . wrapper <$> withRedis command
 
-handleRemoveArg :: String -> IO ()
-handleRemoveArg ("-a") = removeAll
-handleRemoveArg ("--all") = removeAll
-handleRemoveArg (numberString) = remove $ (read numberString :: Integer) - 1
+removeAll :: IO ByteString
+removeAll = getResponse RemoveAllResult $ del [namespace]
 
-removeAll :: IO ()
-removeAll = do
-    result <- withRedis $ del [namespace]
-    putStrLn $ handleRemoveAll result
+removeSingle :: String -> IO ByteString
+removeSingle n = do
+    fetchResult <- withRedis $ lindex namespace $ (read n :: Integer) - 1
+    
+    case fetchResult of
+        Left e -> return $ errorResponse e
+        Right (Just t) -> getResponse RemoveSingleResult $ lrem namespace 1 t
+        Right Nothing -> return $ B.pack "Task not found"
 
-handleRemoveAll :: Either Reply Integer -> String
-handleRemoveAll (Left reply) = "Error: " ++ show reply
-handleRemoveAll (Right _) = "All tasks removed"
+numericizeTask :: Integer -> ByteString -> ByteString
+numericizeTask n t = mconcat [packShow n, separator, t]
 
-add :: [String] -> IO ()
-add tasks = do
-    result <- withRedis $ rpush namespace [pack task | task <- tasks]
+errorResponse :: Reply -> ByteString
+errorResponse = mappend (B.pack "Error: ") . packShow
 
-    putStrLn $ addOutput result
+packShow :: Show a => a -> ByteString
+packShow = B.pack . show
 
-addOutput :: Either Reply Integer -> String
-addOutput (Left reply) = "Error: " ++ show reply
-addOutput (Right _) = "Tasks added."
-
-list :: IO ()
-list = do
-    result <- withRedis $ lrange namespace 0 (-1)
-
-    listOutput result
-
-listOutput :: Either Reply [Data.ByteString.Internal.ByteString] -> IO ()
-listOutput (Left reply)  = putStrLn $ "Error: " ++ show reply
-listOutput (Right tasks) = do
-    let numericizeTask n task = show n ++ " -- " ++ unpack task
-        numberedTasks         = zipWith numericizeTask [1..] tasks
-
-    mapM_ putStrLn numberedTasks
-
-remove :: Integer -> IO ()
-remove n = do
-    let fetchTask = lindex namespace
-        handleFetchTaskResult (Left reply) = putStrLn $ "Error: " ++ show reply
-        handleFetchTaskResult (Right (Just task)) = do
-            result <- withRedis $ lrem namespace 1 task
-            removeOutput task result
-        handleFetchTaskResult (Right Nothing) = taskNotFound
-        taskNotFound = putStrLn "Task not found."
-
-    if n >= 0
-        then do
-            taskResult <- withRedis $ fetchTask n
-            handleFetchTaskResult taskResult
-        else taskNotFound
-
-removeOutput :: ByteString -> Either Reply Integer -> IO ()
-removeOutput _ (Left reply) = putStrLn $ "Error: " ++ show reply
-removeOutput task (Right _) = putStrLn $ "Task removed: " ++ unpack task
+separator :: ByteString
+separator = B.pack " -- "
 
 withRedis :: Redis a -> IO a
 withRedis action = do
     conn <- connect defaultConnectInfo
     runRedis conn action
 
-namespace :: Data.ByteString.Internal.ByteString
-namespace = pack "Redo:tasks"
+namespace :: ByteString
+namespace = B.pack "Redo:tasks"
