@@ -37,6 +37,7 @@ run :: Args -> IO ByteString
 run ("add":xs) = add xs
 run ("list":_) = list
 run ("remove":"-a":_) = removeAll
+run ("remove":"--all":_) = removeAll
 
 removeAll :: IO ByteString
 removeAll = do
