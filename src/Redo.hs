@@ -44,9 +44,10 @@ run ("list":_) = getResponse ListResult $ lrange namespace 0 (-1)
 run ("remove":"-a":_) = removeAll
 run ("remove":"--all":_) = removeAll
 run ("remove":"-s":n:_) = removeSingle n
+run ("remove":"--single":n:_) = removeSingle n
 
 getResponse :: Result c => (a -> c) -> Redis a -> IO ByteString
-getResponse wrapper command = handleResult . wrapper <$> withRedis command
+getResponse wrapper = liftA (handleResult . wrapper) . withRedis
 
 removeAll :: IO ByteString
 removeAll = getResponse RemoveAllResult $ del [namespace]
