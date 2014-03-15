@@ -38,21 +38,32 @@ run ("add":xs) = add xs
 run ("list":_) = list
 run ("remove":"-a":_) = removeAll
 run ("remove":"--all":_) = removeAll
+run ("remove":"-s":n:_) = do
+    fetchResult <- withRedis (lindex namespace $ (read n :: Integer) - 1)
+    
+    case fetchResult of
+        Left e -> return $ B.pack "Error: " `mappend` packShow e
+        Right (Just t) -> do
+            result <- withRedis $ lrem namespace 1 t
+            case result of
+                Left e -> return $ B.pack "Error: " `mappend` packShow e
+                Right _ -> return $ B.pack "Task removed."
+        Right Nothing -> return $ B.pack "Task not found"
 
 removeAll :: IO ByteString
 removeAll = do
     let command = del [namespace]
-    handleResult <$> RemoveAllResult <$> withRedis command
+    handleResult . RemoveAllResult <$> withRedis command
 
 add :: [String] -> IO ByteString
 add tasks = do
     let command = rpush namespace $ map B.pack tasks
-    handleResult <$> AddResult <$> withRedis command
+    handleResult . AddResult <$> withRedis command
 
 list :: IO ByteString
 list = do
     let command = lrange namespace 0 (-1)
-    handleResult <$> ListResult <$> withRedis command
+    handleResult . ListResult <$> withRedis command
 
 numericizeTask :: Integer -> ByteString -> ByteString
 numericizeTask n t = mconcat [packShow n, separator, t]
