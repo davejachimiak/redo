@@ -13,23 +13,23 @@ newtype ListResult = ListResult (Either Reply [ByteString])
 newtype RemoveAllResult = RemoveAllResult (Either Reply Integer)
 newtype RemoveSingleResult = RemoveSingleResult (Either Reply Integer)
 
-class Result r where
+class Response r where
     handleResult :: r -> ByteString
 
-instance Result AddResult where
+instance Response AddResult where
     handleResult (AddResult (Right _)) = B.pack "Tasks added"
     handleResult (AddResult (Left e)) = errorResponse e
 
-instance Result ListResult where
+instance Response ListResult where
     handleResult (ListResult (Right ts)) =
         B.unlines $ zipWith numericizeTask [1..] ts
     handleResult (ListResult (Left e)) = errorResponse e
 
-instance Result RemoveAllResult where
+instance Response RemoveAllResult where
     handleResult (RemoveAllResult (Right _)) = B.pack "All tasks removed"
     handleResult (RemoveAllResult (Left e)) = errorResponse e
 
-instance Result RemoveSingleResult where
+instance Response RemoveSingleResult where
     handleResult (RemoveSingleResult (Right _)) = B.pack "Task removed"
     handleResult (RemoveSingleResult (Left e)) = errorResponse e
 
@@ -46,7 +46,7 @@ run ("remove":"--all":_) = removeAll
 run ("remove":"-s":n:_) = removeSingle n
 run ("remove":"--single":n:_) = removeSingle n
 
-getResponse :: Result c => (a -> c) -> Redis a -> IO ByteString
+getResponse :: Response c => (a -> c) -> Redis a -> IO ByteString
 getResponse wrapper = liftA (handleResult . wrapper) . withRedis
 
 removeAll :: IO ByteString
