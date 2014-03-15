@@ -56,7 +56,7 @@ removeSingle n = do
     fetchResult <- withRedis $ lindex namespace $ (read n :: Integer) - 1
     
     case fetchResult of
-        Left e -> return $ B.pack "Error: " `mappend` packShow e
+        Left e -> return $ errorResponse e
         Right (Just t) -> getResponse RemoveSingleResult $ lrem namespace 1 t
         Right Nothing -> return $ B.pack "Task not found"
 
