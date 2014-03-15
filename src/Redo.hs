@@ -8,19 +8,25 @@ import Data.Monoid
 type Tasks = [String]
 type Args = [String]
 
-data Add e r = Add (Either Reply Integer)
-data ListResult e r = ListResult (Either Reply [ByteString]) deriving Show
+newtype AddResult e r = AddResult (Either Reply Integer)
+newtype ListResult e r = ListResult (Either Reply [ByteString])
+newtype RemoveAllResult e r = RemoveAllResult (Either Reply Integer)
 
 class Result r where
     handleResult :: r -> ByteString
 
-instance Result (Add e r) where
-    handleResult (Add (Right _)) = B.pack "Tasks added"
-    handleResult (Add (Left e)) = B.pack (show e)
+instance Result (AddResult e r) where
+    handleResult (AddResult (Right _)) = B.pack "Tasks added"
+    handleResult (AddResult (Left e)) = B.pack $ show e
 
 instance Result (ListResult e r) where
-    handleResult (ListResult (Right ts)) = B.unlines $ zipWith numericizeTask [1..] ts
-    handleResult (ListResult (Left e)) = B.pack (show e)
+    handleResult (ListResult (Right ts)) =
+        B.unlines $ zipWith numericizeTask [1..] ts
+    handleResult (ListResult (Left e)) = B.pack $ show e
+
+instance Result (RemoveAllResult e r) where
+    handleResult (RemoveAllResult (Right _)) = B.pack "All tasks removed"
+    handleResult (RemoveAllResult (Left e)) = B.pack $ show e
 
 main = do
     args <- getArgs
@@ -30,12 +36,22 @@ main = do
 run :: Args -> IO ByteString
 run ("add":xs) = add xs
 run ("list":_) = list
+run ("remove":"-a":_) = removeAll
+
+removeAll :: IO ByteString
+removeAll = do
+    let command = del [namespace]
+    handleResult <$> RemoveAllResult <$> withRedis command
 
 add :: [String] -> IO ByteString
-add tasks = handleResult <$> Add <$> withRedis (rpush namespace $ map B.pack tasks)
+add tasks = do
+    let command = rpush namespace $ map B.pack tasks
+    handleResult <$> AddResult <$> withRedis command
 
 list :: IO ByteString
-list = handleResult <$> ListResult <$> withRedis (lrange namespace 0 (-1))
+list = do
+    let command = lrange namespace 0 (-1)
+    handleResult <$> ListResult <$> withRedis command
 
 numericizeTask :: Integer -> ByteString -> ByteString
 numericizeTask n t = mconcat [packShow n, separator, t]
