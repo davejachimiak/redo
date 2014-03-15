@@ -8,30 +8,30 @@ import Data.Monoid
 type Tasks = [String]
 type Args = [String]
 
-newtype AddResult e r = AddResult (Either Reply Integer)
-newtype ListResult e r = ListResult (Either Reply [ByteString])
-newtype RemoveAllResult e r = RemoveAllResult (Either Reply Integer)
-newtype RemoveSingleResult e r = RemoveSingleResult (Either Reply Integer)
+newtype AddResult = AddResult (Either Reply Integer)
+newtype ListResult = ListResult (Either Reply [ByteString])
+newtype RemoveAllResult = RemoveAllResult (Either Reply Integer)
+newtype RemoveSingleResult = RemoveSingleResult (Either Reply Integer)
 
 class Result r where
     handleResult :: r -> ByteString
 
-instance Result (AddResult e r) where
+instance Result AddResult where
     handleResult (AddResult (Right _)) = B.pack "Tasks added"
-    handleResult (AddResult (Left e)) = B.pack $ show e
+    handleResult (AddResult (Left e)) = errorResponse e
 
-instance Result (ListResult e r) where
+instance Result ListResult where
     handleResult (ListResult (Right ts)) =
         B.unlines $ zipWith numericizeTask [1..] ts
-    handleResult (ListResult (Left e)) = B.pack $ show e
+    handleResult (ListResult (Left e)) = errorResponse e
 
-instance Result (RemoveAllResult e r) where
+instance Result RemoveAllResult where
     handleResult (RemoveAllResult (Right _)) = B.pack "All tasks removed"
-    handleResult (RemoveAllResult (Left e)) = B.pack $ show e
+    handleResult (RemoveAllResult (Left e)) = errorResponse e
 
-instance Result (RemoveSingleResult e r) where
+instance Result RemoveSingleResult where
     handleResult (RemoveSingleResult (Right _)) = B.pack "Task removed"
-    handleResult (RemoveSingleResult (Left e)) = B.pack $ show e
+    handleResult (RemoveSingleResult (Left e)) = errorResponse e
 
 main = do
     args <- getArgs
@@ -39,41 +39,32 @@ main = do
     B.putStrLn response
 
 run :: Args -> IO ByteString
-run ("add":xs) = add xs
-run ("list":_) = list
+run ("add":xs) = getResponse AddResult $ rpush namespace (map B.pack xs)
+run ("list":_) = getResponse ListResult $ lrange namespace 0 (-1)
 run ("remove":"-a":_) = removeAll
 run ("remove":"--all":_) = removeAll
 run ("remove":"-s":n:_) = removeSingle n
 
-add :: [String] -> IO ByteString
-add tasks = do
-    let command = rpush namespace $ map B.pack tasks
-    handleResult . AddResult <$> withRedis command
-
-list :: IO ByteString
-list = do
-    let command = lrange namespace 0 (-1)
-    handleResult . ListResult <$> withRedis command
+getResponse :: Result c => (a -> c) -> Redis a -> IO ByteString
+getResponse wrapper command = handleResult . wrapper <$> withRedis command
 
 removeAll :: IO ByteString
-removeAll = do
-    let command = del [namespace]
-    handleResult . RemoveAllResult <$> withRedis command
+removeAll = getResponse RemoveAllResult $ del [namespace]
 
 removeSingle :: String -> IO ByteString
 removeSingle n = do
-    let fetchCommand = lindex namespace $ (read n :: Integer) - 1
-
-    fetchResult <- withRedis fetchCommand
+    fetchResult <- withRedis $ lindex namespace $ (read n :: Integer) - 1
     
     case fetchResult of
         Left e -> return $ B.pack "Error: " `mappend` packShow e
-        Right (Just t) ->
-            handleResult . RemoveSingleResult <$> withRedis (lrem namespace 1 t)
+        Right (Just t) -> getResponse RemoveSingleResult $ lrem namespace 1 t
         Right Nothing -> return $ B.pack "Task not found"
 
 numericizeTask :: Integer -> ByteString -> ByteString
 numericizeTask n t = mconcat [packShow n, separator, t]
+
+errorResponse :: Reply -> ByteString
+errorResponse = mappend (B.pack "Error: ") . packShow
 
 packShow :: Show a => a -> ByteString
 packShow = B.pack . show
