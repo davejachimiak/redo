@@ -11,6 +11,7 @@ type Args = [String]
 newtype AddResult e r = AddResult (Either Reply Integer)
 newtype ListResult e r = ListResult (Either Reply [ByteString])
 newtype RemoveAllResult e r = RemoveAllResult (Either Reply Integer)
+newtype RemoveSingleResult e r = RemoveSingleResult (Either Reply Integer)
 
 class Result r where
     handleResult :: r -> ByteString
@@ -28,6 +29,10 @@ instance Result (RemoveAllResult e r) where
     handleResult (RemoveAllResult (Right _)) = B.pack "All tasks removed"
     handleResult (RemoveAllResult (Left e)) = B.pack $ show e
 
+instance Result (RemoveSingleResult e r) where
+    handleResult (RemoveSingleResult (Right _)) = B.pack "Task removed"
+    handleResult (RemoveSingleResult (Left e)) = B.pack $ show e
+
 main = do
     args <- getArgs
     response <- run args
@@ -38,22 +43,7 @@ run ("add":xs) = add xs
 run ("list":_) = list
 run ("remove":"-a":_) = removeAll
 run ("remove":"--all":_) = removeAll
-run ("remove":"-s":n:_) = do
-    fetchResult <- withRedis (lindex namespace $ (read n :: Integer) - 1)
-    
-    case fetchResult of
-        Left e -> return $ B.pack "Error: " `mappend` packShow e
-        Right (Just t) -> do
-            result <- withRedis $ lrem namespace 1 t
-            case result of
-                Left e -> return $ B.pack "Error: " `mappend` packShow e
-                Right _ -> return $ B.pack "Task removed."
-        Right Nothing -> return $ B.pack "Task not found"
-
-removeAll :: IO ByteString
-removeAll = do
-    let command = del [namespace]
-    handleResult . RemoveAllResult <$> withRedis command
+run ("remove":"-s":n:_) = removeSingle n
 
 add :: [String] -> IO ByteString
 add tasks = do
@@ -64,6 +54,23 @@ list :: IO ByteString
 list = do
     let command = lrange namespace 0 (-1)
     handleResult . ListResult <$> withRedis command
+
+removeAll :: IO ByteString
+removeAll = do
+    let command = del [namespace]
+    handleResult . RemoveAllResult <$> withRedis command
+
+removeSingle :: String -> IO ByteString
+removeSingle n = do
+    let fetchCommand = lindex namespace $ (read n :: Integer) - 1
+
+    fetchResult <- withRedis fetchCommand
+    
+    case fetchResult of
+        Left e -> return $ B.pack "Error: " `mappend` packShow e
+        Right (Just t) ->
+            handleResult . RemoveSingleResult <$> withRedis (lrem namespace 1 t)
+        Right Nothing -> return $ B.pack "Task not found"
 
 numericizeTask :: Integer -> ByteString -> ByteString
 numericizeTask n t = mconcat [packShow n, separator, t]
