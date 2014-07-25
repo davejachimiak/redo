@@ -22,7 +22,7 @@ instance Response AddResult where
 
 instance Response ListResult where
     handleResult (ListResult (Right ts)) =
-        B.unlines $ zipWith numericizeTask [1..] ts
+        B.init $ B.unlines $ zipWith numericizeTask [1..] ts
     handleResult (ListResult (Left e)) = errorResponse e
 
 instance Response RemoveAllResult where
